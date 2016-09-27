@@ -43,7 +43,7 @@ except:
     from mdf3reader import mdf3
     from mdf4reader import mdf4
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
-from numpy import nan, datetime64, array
+from numpy import nan, datetime64, array, searchsorted
 from datetime import datetime
 
 from argparse import ArgumentParser
@@ -94,6 +94,10 @@ def _convertMatlabName(channel):
         return buf
     channelName = cleanName(channelName)
     return channelName
+
+def _interp0(xs, xps, yps):
+    indexes = searchsorted(xps[1:], xs, side='right')
+    return yps[indexes]
 
 
 class mdfinfo(dict):
@@ -468,7 +472,7 @@ class mdf(mdf3, mdf4):
             except:
                 print(Name, file=stderr)
 
-    def resample(self, samplingTime=None, masterChannel=None):
+    def resample(self, samplingTime=None, masterChannel=None, kind='linear'):
         """ Resamples all data groups into one data group having defined
         sampling interval or sharing same master channel
 
@@ -546,7 +550,11 @@ class mdf(mdf3, mdf4):
                         if Name not in list(self.masterChannelList.keys()):  # not a master channel
                             timevect = self.getChannelData(self.getChannelMaster(Name))
                             if not self.getChannelData(Name).dtype.kind in ('S', 'U'):  # if channel not array of string
-                                self.setChannelData(Name, interp(masterData, timevect, self.getChannelData(Name)))
+                                if kind == 'zero':
+                                    self.setChannelData(Name, _interp0(masterData, timevect, self.getChannelData(Name)))
+                                else:
+                                    self.setChannelData(Name, interp(masterData, timevect, self.getChannelData(Name)))
+
                             else:  # can not interpolate strings, remove channel containing string
                                 self.remove_channel(Name)
                     except:
